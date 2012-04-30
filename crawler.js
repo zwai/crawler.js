@@ -1,7 +1,15 @@
+/*
+ *	crawler.js: A simple HTTP crawler
+ *
+ *  Copyright(c) 2012 Wayne Chen <zwai.chen@gmail.com>
+ *
+ *  GPLv3 License
+ */
+
 var request = require('/usr/lib/node_modules/http-agent/node_modules/request/');
 var util = require('util');
 var events = require('events');
-
+var url = require('url');
 
 exports.create = function (urls, options) {
 	return new Crawler(urls, options);
@@ -56,7 +64,7 @@ Crawler.prototype.stop = function () {
 };
 
 Crawler.prototype.addUrls = function (urls) {
-
+	
 }
 
 Crawler.prototype._next = function () {
@@ -70,6 +78,10 @@ Crawler.prototype._next = function () {
 		}
 	}
 };
+
+Crawler.prototype._isValidUrl = function (url) {
+	
+}
 
 Crawler.prototype._download = function (url) {
 
