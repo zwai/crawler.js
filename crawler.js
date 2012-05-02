@@ -6,15 +6,15 @@
  *  GPLv3 License
  */
 
-var request = require('/usr/lib/node_modules/http-agent/node_modules/request/');
 var util = require('util');
 var events = require('events');
-var url = require('url');
+var urlparse = require('url');
+var http = require('http');
+var buffertools = require('buffertools');
 
 exports.create = function (urls, options) {
 	return new Crawler(urls, options);
 }
-
 
 var default_headers = {
 	'user-agent': 'Mozilla/5.0 (Windows NT 5.1; rv:10.0.2) Gecko/20100101 Firefox/10.0.2',
@@ -25,21 +25,21 @@ var default_headers = {
 var Crawler = function (urls, options) {
 	events.EventEmitter.call(this);
 
-	this._debug = true;
-
 	this.options = options || {};
 	this.options.headers = this.options.headers || default_headers;
-	
+
 	switch (typeof(urls)) {
 		case 'string':
 			this.urls = [urls];
 			break;
-		case 'array':
-			this.urls = urls;
-			break;
 		case 'undefined':
 			this.urls = [];
 			break;
+		case 'object':
+			if (util.isArray(urls)) {
+				this.urls = urls;
+				break;
+			} 
 		default:
 			throw new Error('First argument type error!');
 	}
@@ -64,7 +64,12 @@ Crawler.prototype.stop = function () {
 };
 
 Crawler.prototype.addUrls = function (urls) {
-	
+	if (typeof urls == 'string' || Array.isArray(urls)) {
+		this.urls = this.urls.concat(urls);
+	}
+	else {
+		throw new Error('First argument type error!');
+	}
 }
 
 Crawler.prototype._next = function () {
@@ -79,56 +84,39 @@ Crawler.prototype._next = function () {
 	}
 };
 
-Crawler.prototype._isValidUrl = function (url) {
-	
-}
-
 Crawler.prototype._download = function (url) {
 
-	var options = {
-		url: url,
-		headers: this.options.headers,
-	};
+	var parsed = urlparse.parse(url);
+	var options = this.options;
 
-	if (this._debug) {
-		console.log('\n=== Request Header ===');
-		for (var key in this.options.headers) {
-			console.log(key+ ': ' + options.headers[key]);
-		}
-		console.log('======================\n');
-	}
+	options.host = parsed.host;
+	options.port = parsed.port || 80;
+	options.path = parsed.path;
+	options.method = options.method || 'GET';
 
 	var self = this;
 
-	request(options, function (err, response, body) {
-		if (err) {
-			console.error('download error');
+	var buffer = new Buffer(0);
+	var request = http.request(options, function (response) {
+		response.on('data', function (chunk) {
+			buffer = buffer.concat(chunk);
+		});
+
+		response.on('end', function () {
+			self.current = options;
+			self.response = response;
+			self.bodyBuffer = buffer;
+			self.emit('received', null, self);
 			self._next();
-			return;
-		}
-
-		self.current = options;
-		self.response = response;
-		self.body = body;
-		self.options = self;
-
-		self.emit('received', null, self);
-		self._next();
+		});
 	});
+
+	request.on('error', function (e) {
+		console.log(e.message());
+	});
+
+	request.end();
 
 	return ;
 }
-/*
-agent = new Crawler('http://localhost:8000');
-//agent = new Crawler();
-agent.addListener('received', function (e, agent) {
-	console.log(agent.body);
-});
 
-agent.addListener('stop', function (e, agent) {
-	console.log('stop');
-	return;
-});
-
-agent.start();
-*/
